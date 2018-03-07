@@ -16,7 +16,7 @@ class TwitterApiWrapper(object):
                 access_token, access_token_secret)
 
 
-    def get_follower_ids(self, user_id, max_ids_returned=5000):
+    def get_follower_ids(self, user_id, max_ids_returned=5000, return_if_error=True):
         '''Get followers for the given user id.
 
         user_id
@@ -52,6 +52,12 @@ class TwitterApiWrapper(object):
             else:
                 logger.warning('Error getting twitter follower ids. Error code was {}. {} requests remaining'.format(
                         r.status_code, r.headers['x-rate-limit-remaining']))
+                logger.warning('response content: {}'.format(r.content))
+
+                # return empty if no retry expected
+                if return_if_error:
+                    logger.warning('returning empty list')
+                    return []
 
             # sleep if rate limited
             if r.headers['x-rate-limit-remaining'] == '0':
@@ -61,7 +67,22 @@ class TwitterApiWrapper(object):
         return follower_ids[:max_ids_returned]
 
 
-    def get_tweets(self, user_id, max_tweets_returned=200):
+    def get_user(self, user_id):
+        '''Get user object, returns None if user not found'''
+        url = 'https://api.twitter.com/1.1/users/show.json'
+        params = {
+                    'user_id': user_id
+                }
+
+        r = requests.get(url, auth=self.auth, params=params)
+
+        if r.status_code != 200:
+            return None
+
+        return r.json()
+
+
+    def get_tweets(self, user_id, max_tweets_returned=200, return_if_error=True):
         '''Get tweets for the given user id.
         Most recent tweets are returned first.
 
@@ -90,19 +111,23 @@ class TwitterApiWrapper(object):
 
         tweets = []
         while True:
+            logger.info('getting tweets for {}'.format(user_id))
             r = requests.get(url, auth=self.auth, params=params)
 
             if r.status_code == 200:
                 returned_tweets = r.json()
                 tweets += returned_tweets
-                
-                if len(tweets) >= max_tweets_returned:
+
+                # break if > max tweets returned or there are no more tweets to gather
+                if len(tweets) >= max_tweets_returned or len(tweets) == 0 or len(tweets) % count != 0:
                     break
 
                 params['max_id'] = tweets[-1]['id'] - 1 # need to subtract one so same tweet doesn't show up twice
             else:
-                logger.warning('Error getting twitter follower ids. Error code was {}. {} requests remaining'.format(
+                logger.warning('Error getting tweets. Error code was {}. {} requests remaining'.format(
                         r.status_code, r.headers['x-rate-limit-remaining']))
+                if return_if_error and r.status_code!=429:
+                    return tweets
 
             # sleep if rate limited
             if r.headers['x-rate-limit-remaining'] == '0':
