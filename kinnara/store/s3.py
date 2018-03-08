@@ -201,6 +201,8 @@ class S3Gatherer(object):
             if len(tweets) >= tweets_per_file:
                 key = str(uuid.uuid4())
                 payload = json.dumps(tweets)
+
+                logger.info(payload)
                 f_obj = io.BytesIO(payload.encode())
 
                 self.s3.upload_fileobj(f_obj, self.bucket_name, key)
