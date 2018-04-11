@@ -262,7 +262,8 @@ class S3Downloader(object):
 
                 # grab subset of keys if necessary
                 if limit_keys_to is not None:
-                    tweet = {k: tweet[k] for k in limit_keys_to}
+                    tweet = {k: tweet[k] for k in limit_keys_to
+                            if k in tweet}
 
                 # if all unique, only add tweets that havent been seen
                 if all_unique:
