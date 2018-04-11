@@ -210,3 +210,66 @@ class S3Gatherer(object):
 
                 if cutoff is not None and count >= cutoff:
                     break
+
+
+class S3Downloader(object):
+    '''A class that dumps s3 data into files'''
+    def __init__(self, aws_access_key, aws_secret_access_key, s3_bucket_name):
+        '''Initialize class with twitter and aws credentials'''
+        self.s3 = boto3.client('s3',
+                aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_access_key)
+
+        self.bucket_name = s3_bucket_name
+
+    def download_tweet_stream(self, out_fp, limit_keys_to=None, no_retweets=True, all_unique=True):
+        '''Download the results of store_tweet_stream from S3Gatherer to a file.
+        Each line in the output file is a json tweet.
+
+        out_fp
+            output file path
+        limit_keys_to
+            tweets fields that are kept.
+            it will keep all fields by default.
+        no_retweets
+            don't include retweets
+        all_unique
+            Pull only unique tweet content.
+            i.e. if a tweet is retweeted a bunch of times, the tweet is only included
+            in the output file once
+        '''
+        # if limit_keys_to, it must always contain id field
+        if limit_keys_to is not None:
+            limit_keys_to.append('id')
+
+        already_seen = set()
+        out_f = open(out_fp, 'w')
+        for key in self.s3.list_objects(Bucket=self.bucket_name)['Contents']:
+            bucket_fp = key['Key']
+            obj = self.s3.get_object(Bucket=self.bucket_name, Key=bucket_fp)
+
+            tweets = json.loads(obj['Body'].read())
+
+            for tweet in tweets:
+                # check to see if it's a retweet
+                if 'retweeted_status' in tweet:
+                    # skip if no retweets
+                    if no_retweets:
+                        break
+
+                    # pull out retweet if all unique
+                    if all_unique:
+                        tweet = tweet['retweeted_status']
+
+                # grab subset of keys if necessary
+                if limit_keys_to is not None:
+                    tweet = {k: tweet[k] for k in limit_keys_to
+                            if k in tweet}
+
+                # if all unique, only add tweets that havent been seen
+                if all_unique:
+                    if tweet['id'] not in already_seen:
+                        out_f.write(json.dumps(tweet) + '\n')
+                        already_seen.add(tweet['id'])
+                # otherwise just write it to the file
+                else:
+                    out_f.write(json.dumps(tweet) + '\n')
