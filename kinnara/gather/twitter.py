@@ -70,9 +70,16 @@ class TwitterApiWrapper(object):
     def get_user(self, user_id):
         '''Get user object, returns None if user not found'''
         url = 'https://api.twitter.com/1.1/users/show.json'
-        params = {
-                    'user_id': user_id
-                }
+
+        if user_id.isdigit():
+            params = {
+                        'user_id': user_id
+                    }
+        else:
+            params = {
+                        'screen_name': user_id
+                    }
+
 
         r = requests.get(url, auth=self.auth, params=params)
 
@@ -137,7 +144,7 @@ class TwitterApiWrapper(object):
         return tweets[:max_tweets_returned]
 
 
-    def get_live_stream(self, follow=[], track=[], locations=[]):
+    def get_live_stream(self, follow=None, track=None, locations=None):
         '''Yields tweets that match the given filter criteria.
 
         follow
@@ -148,6 +155,12 @@ class TwitterApiWrapper(object):
         locations
             bounding boxes tweets should be within
         '''
+        if follow is None:
+            follow = []
+        if track is None:
+            track = []
+        if locations is None:
+            locations = []
 
         url = 'https://stream.twitter.com/1.1/statuses/filter.json'
         params = {
